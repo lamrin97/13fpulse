@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --buy: #3B6D11;
+  --sell: #A32D2D;
+  --split: #854F0B;
+  --bg: #ffffff;
+  --bg2: #f8f9fa;
+  --border: rgba(0,0,0,0.08);
+  --text: #1a1a1a;
+  --text2: #6b7280;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--bg2);
+  color: var(--text);
+  font-family: 'DM Mono', 'Fira Code', monospace;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+
+.perf-pos { color: var(--buy); }
+.perf-neg { color: var(--sell); }
+
+.buy-pill  { background: #EAF3DE; color: #27500A; }
+.sell-pill { background: #FCEBEB; color: #791F1F; }
+.mix-pill  { background: #FAEEDA; color: #633806; }
+.neu-pill  { background: #f3f4f6; color: #6b7280; border: 0.5px solid #e5e7eb; }
+
+.conv-bar { height: 4px; border-radius: 2px; background: #e5e7eb; }
+.conv-fill { height: 100%; border-radius: 2px; background: #378ADD; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fadein { animation: fadeIn 0.2s ease; }
+.spinner { border: 2px solid #e5e7eb; border-top-color: #378ADD; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.7s linear infinite; }
