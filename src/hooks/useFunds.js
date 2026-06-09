@@ -2,10 +2,22 @@ import { useState, useEffect } from 'react'
 import { getFundFilingsList, getHoldings, diffHoldings } from '../lib/api'
 
 export const FUNDS = [
-  { id: 'tiger',      name: 'Tiger Global',   cik: '0001167483', color: '#f59e0b', aum: '$23B',  score: 71 },
-  { id: 'bridgewater',name: 'Bridgewater',     cik: '0001350694', color: '#10b981', aum: '$124B', score: 87 },
-  { id: 'aqr',        name: 'AQR Capital',     cik: '0001167557', color: '#8b5cf6', aum: '$93B',  score: 79 },
-  { id: 'pershing',   name: 'Pershing Square', cik: '0001336528', color: '#ef4444', aum: '$18B',  score: 82 },
+  // Original 4
+  { id: 'tiger',       name: 'Tiger Global',        cik: '0001167483', color: '#f59e0b', aum: '$23B',  score: 71 },
+  { id: 'bridgewater', name: 'Bridgewater',          cik: '0001350694', color: '#10b981', aum: '$124B', score: 87 },
+  { id: 'aqr',         name: 'AQR Capital',          cik: '0001167557', color: '#8b5cf6', aum: '$93B',  score: 79 },
+  { id: 'pershing',    name: 'Pershing Square',      cik: '0001336528', color: '#ef4444', aum: '$18B',  score: 82 },
+  // New 10
+  { id: 'citadel',     name: 'Citadel Advisors',     cik: '0001423053', color: '#0ea5e9', aum: '$63B',  score: 90 },
+  { id: 'millennium',  name: 'Millennium Mgmt',      cik: '0001273087', color: '#6366f1', aum: '$83B',  score: 88 },
+  { id: 'deshaw',      name: 'D.E. Shaw',             cik: '0001009672', color: '#14b8a6', aum: '$60B',  score: 85 },
+  { id: 'point72',     name: 'Point72',               cik: '0001603466', color: '#f97316', aum: '$35B',  score: 83 },
+  { id: 'renaissance', name: 'Renaissance Tech',      cik: '0001037389', color: '#a855f7', aum: '$55B',  score: 92 },
+  { id: 'twosigma',    name: 'Two Sigma',             cik: '0001179392', color: '#ec4899', aum: '$60B',  score: 86 },
+  { id: 'appaloosa',   name: 'Appaloosa Mgmt',        cik: '0001006438', color: '#84cc16', aum: '$14B',  score: 78 },
+  { id: 'baupost',     name: 'Baupost Group',         cik: '0001061768', color: '#06b6d4', aum: '$27B',  score: 81 },
+  { id: 'thirdpoint',  name: 'Third Point',           cik: '0001040273', color: '#f43f5e', aum: '$10B',  score: 76 },
+  { id: 'duquesne',    name: 'Duquesne Family Office',cik: '0001536411', color: '#fb923c', aum: '$3B',   score: 89 },
 ]
 
 const CACHE = {}
@@ -76,7 +88,6 @@ export function useFunds() {
     }))
   })
 
-  // Aggregate by ticker — one entry per fund per ticker
   const byTicker = {}
 
   allHoldings.forEach(h => {
@@ -100,7 +111,6 @@ export function useFunds() {
     fm[h.fundId].currentShares += h.shares
     fm[h.fundId].priorShares   += (h.priorShares || 0)
     fm[h.fundId].priorValue    += (h.priorValue  || 0)
-    // Resolve change: if any entry is add/trim that overrides hold/new
     const priority = { exit: 5, trim: 4, add: 3, new: 2, hold: 1 }
     if ((priority[h.change] || 0) > (priority[fm[h.fundId].change] || 0)) {
       fm[h.fundId].change = h.change
