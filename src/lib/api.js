@@ -209,43 +209,68 @@ export async function getHoldings(cik, accessionRaw) {
   return rows.sort((a, b) => b.value - a.value)
 }
 
-// Diff two holdings arrays using NAME-based matching (not CUSIP)
-// This handles funds like AQR that file multiple CUSIPs per company
+// Classify a raw holding row into a security type label
+function getSecType(h) {
+  const pc = (h.putCall || '').trim().toLowerCase()
+  if (pc === 'put')  return 'Put'
+  if (pc === 'call') return 'Call'
+  return 'Common'
+}
+
+// Diff two holdings arrays.
+// Groups by (nameOfIssuer + secType) so common stock, calls and puts are
+// diffed independently. This prevents options from inflating share counts.
+//
+// Each enriched entry carries:
+//   secType       — 'Common' | 'Call' | 'Put'
+//   change        — 'new' | 'add' | 'hold' | 'trim' | 'exit'
+//   shares        — current shares for this secType
+//   priorShares   — prior shares for this secType
+//   shareDelta    — current - prior
+//   value         — current dollar value
+//   priorValue    — prior dollar value
+//
+// The top-level `change` on an aggregated ticker should always be taken
+// from the 'Common' secType entry (see useFunds.js aggregation).
 export function diffHoldings(current, prior) {
-  // Group prior by normalized company name
-  const priorByName = {}
+  const makeKey = (name, secType) => `${name.toUpperCase().trim()}||${secType}`
+
+  // Group prior by name+secType
+  const priorMap = {}
   ;(prior || []).forEach(h => {
-    const key = h.nameOfIssuer.toUpperCase().trim()
-    if (!priorByName[key]) priorByName[key] = { shares: 0, value: 0 }
-    priorByName[key].shares += h.shares
-    priorByName[key].value  += h.value
+    const key = makeKey(h.nameOfIssuer, getSecType(h))
+    if (!priorMap[key]) priorMap[key] = { shares: 0, value: 0 }
+    priorMap[key].shares += h.shares
+    priorMap[key].value  += h.value
   })
 
-  // Group current by normalized company name
-  const currentByName = {}
+  // Group current by name+secType
+  const currentMap = {}
   ;(current || []).forEach(h => {
-    const key = h.nameOfIssuer.toUpperCase().trim()
-    if (!currentByName[key]) currentByName[key] = { shares: 0, value: 0, cusip: h.cusip, nameOfIssuer: h.nameOfIssuer }
-    currentByName[key].shares += h.shares
-    currentByName[key].value  += h.value
+    const st  = getSecType(h)
+    const key = makeKey(h.nameOfIssuer, st)
+    if (!currentMap[key]) currentMap[key] = { shares: 0, value: 0, cusip: h.cusip, nameOfIssuer: h.nameOfIssuer, secType: st }
+    currentMap[key].shares += h.shares
+    currentMap[key].value  += h.value
   })
 
-  // Build enriched current holdings
-  const enriched = Object.values(currentByName).map(h => {
-    const p = priorByName[h.nameOfIssuer.toUpperCase().trim()]
+  // Build enriched — one entry per name+secType combination
+  const enriched = Object.values(currentMap).map(h => {
+    const p = priorMap[makeKey(h.nameOfIssuer, h.secType)]
     if (!p) return { ...h, change: 'new', priorShares: 0, priorValue: 0, shareDelta: h.shares }
-    const delta = h.shares - p.shares
-    const pct   = p.shares ? Math.round((delta / p.shares) * 100) : 0
+    const delta  = h.shares - p.shares
+    const pct    = p.shares ? Math.round((delta / p.shares) * 100) : 0
     const change = Math.abs(pct) < 2 ? 'hold' : delta > 0 ? 'add' : 'trim'
     return { ...h, change, priorShares: p.shares, priorValue: p.value, shareDelta: delta }
   })
 
-  // Find exits — in prior but not in current
-  const exits = Object.entries(priorByName)
-    .filter(([key]) => !currentByName[key])
+  // Exits — in prior but not current, per name+secType
+  const exits = Object.entries(priorMap)
+    .filter(([key]) => !currentMap[key])
     .map(([key, p]) => {
-      const name = (prior || []).find(h => h.nameOfIssuer.toUpperCase().trim() === key)?.nameOfIssuer || key
-      return { nameOfIssuer: name, cusip: '', value: 0, shares: 0, change: 'exit', priorShares: p.shares, priorValue: p.value, shareDelta: -p.shares }
+      const [rawName, secType] = key.split('||')
+      const name = (prior || []).find(h => h.nameOfIssuer.toUpperCase().trim() === rawName)?.nameOfIssuer || rawName
+      return { nameOfIssuer: name, cusip: '', value: 0, shares: 0, secType, change: 'exit', priorShares: p.shares, priorValue: p.value, shareDelta: -p.shares }
     })
 
   return { enriched, exits }

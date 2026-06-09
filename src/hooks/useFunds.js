@@ -89,51 +89,78 @@ export function useFunds() {
   })
 
   const byTicker = {}
+  const priority = { exit: 5, trim: 4, add: 3, new: 2, hold: 1 }
 
-  allHoldings.forEach(h => {
-    const tk = h.nameOfIssuer
+  // Helper: ensure ticker + fund entry exists
+  function ensureFund(tk, h) {
     if (!byTicker[tk]) byTicker[tk] = { nameOfIssuer: tk, cusip: h.cusip, totalValue: 0, totalShares: 0, fundMap: {} }
-    byTicker[tk].totalValue  += h.value
-    byTicker[tk].totalShares += h.shares
-
     const fm = byTicker[tk].fundMap
     if (!fm[h.fundId]) {
       fm[h.fundId] = {
         fundId: h.fundId, fundName: h.fundName, fundColor: h.fundColor,
         filed: h.filed, period: h.period,
         priorFiled: h.priorFiled, priorPeriod: h.priorPeriod,
+        // Common-stock totals (used for direction badge)
         currentValue: 0, currentShares: 0,
         priorValue: 0,   priorShares: 0,
-        change: h.change,
+        change: 'hold',
+        // All positions broken out by secType for drill-down
+        positions: [],
       }
     }
-    fm[h.fundId].currentValue  += h.value
-    fm[h.fundId].currentShares += h.shares
-    fm[h.fundId].priorShares   += (h.priorShares || 0)
-    fm[h.fundId].priorValue    += (h.priorValue  || 0)
-    const priority = { exit: 5, trim: 4, add: 3, new: 2, hold: 1 }
-    if ((priority[h.change] || 0) > (priority[fm[h.fundId].change] || 0)) {
-      fm[h.fundId].change = h.change
+    return fm[h.fundId]
+  }
+
+  allHoldings.forEach(h => {
+    const tk  = h.nameOfIssuer
+    const fd  = ensureFund(tk, h)
+
+    // Always add to positions array for drill-down display
+    fd.positions.push({
+      secType:      h.secType || 'Common',
+      change:       h.change,
+      currentShares: h.shares,
+      priorShares:   h.priorShares || 0,
+      shareDelta:    h.shareDelta  || 0,
+      currentValue:  h.value,
+      priorValue:    h.priorValue  || 0,
+    })
+
+    // Total value across ALL security types (shown in grid)
+    byTicker[tk].totalValue += h.value
+
+    // Common stock only → used for share counts + direction badge
+    if (!h.secType || h.secType === 'Common') {
+      byTicker[tk].totalShares += h.shares
+      fd.currentValue  += h.value
+      fd.currentShares += h.shares
+      fd.priorShares   += (h.priorShares || 0)
+      fd.priorValue    += (h.priorValue  || 0)
+      // Direction badge driven by common stock change
+      if ((priority[h.change] || 0) > (priority[fd.change] || 0)) {
+        fd.change = h.change
+      }
     }
   })
 
   allExits.forEach(h => {
     const tk = h.nameOfIssuer
-    if (!byTicker[tk]) byTicker[tk] = { nameOfIssuer: tk, cusip: h.cusip, totalValue: 0, totalShares: 0, fundMap: {} }
-    const fm = byTicker[tk].fundMap
-    if (!fm[h.fundId]) {
-      fm[h.fundId] = {
-        fundId: h.fundId, fundName: h.fundName, fundColor: h.fundColor,
-        filed: h.filed, period: h.period,
-        priorFiled: h.priorFiled, priorPeriod: h.priorPeriod,
-        currentValue: 0, currentShares: 0,
-        priorValue: h.priorValue || 0, priorShares: h.priorShares || 0,
-        change: 'exit',
-      }
-    } else {
-      fm[h.fundId].priorShares += (h.priorShares || 0)
-      fm[h.fundId].priorValue  += (h.priorValue  || 0)
-      fm[h.fundId].change = 'exit'
+    const fd = ensureFund(tk, h)
+
+    fd.positions.push({
+      secType:       h.secType || 'Common',
+      change:        'exit',
+      currentShares: 0,
+      priorShares:   h.priorShares || 0,
+      shareDelta:    -(h.priorShares || 0),
+      currentValue:  0,
+      priorValue:    h.priorValue || 0,
+    })
+
+    if (!h.secType || h.secType === 'Common') {
+      fd.priorShares += (h.priorShares || 0)
+      fd.priorValue  += (h.priorValue  || 0)
+      fd.change = 'exit'
     }
   })
 

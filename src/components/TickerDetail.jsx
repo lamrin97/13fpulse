@@ -134,53 +134,88 @@ export default function TickerDetail({ ticker, onBack, watchlist, onToggleWatch 
                 <InfoTooltip text={TIPS.funds} />
               </div>
               {sortedFunds.map((f, i) => {
-                const isNew  = f.change === 'new'
-                const isExit = f.change === 'exit'
-                const isAdd  = !isNew && f.shareDelta > 0
-                const isTrim = f.shareDelta < 0
-                const chgBg    = isNew ? '#D1FAE5' : isExit ? '#FCEBEB' : isAdd ? '#EAF3DE' : isTrim ? '#FEF9C3' : '#f3f4f6'
-                const chgColor = isNew ? '#065F46' : isExit ? '#791F1F' : isAdd ? '#27500A' : isTrim ? '#854D0E' : '#6b7280'
-                const chgLabel = isNew  ? '🆕 New position' :
-                                 isExit ? '✕ Exited' :
-                                 isAdd  ? `▲ +${(f.shareDelta / 1e6).toFixed(2)}M shs` :
-                                 isTrim ? `▼ ${(f.shareDelta / 1e6).toFixed(2)}M shs` : '— Unchanged'
+                // Common stock position — drives the top-level badge
+                const common = (f.positions || []).find(p => p.secType === 'Common') || {
+                  secType: 'Common', change: f.change,
+                  currentShares: f.currentShares, priorShares: f.priorShares,
+                  shareDelta: f.shareDelta, currentValue: f.currentValue, priorValue: f.priorValue,
+                }
+                // Options positions (calls + puts) shown as sub-rows
+                const options = (f.positions || []).filter(p => p.secType !== 'Common')
+
+                const chgBadge = (change, delta) => {
+                  const isNew  = change === 'new'
+                  const isExit = change === 'exit'
+                  const isAdd  = !isNew && delta > 0
+                  const isTrim = delta < 0
+                  const bg    = isNew ? '#D1FAE5' : isExit ? '#FCEBEB' : isAdd ? '#EAF3DE' : isTrim ? '#FEF9C3' : '#f3f4f6'
+                  const color = isNew ? '#065F46' : isExit ? '#791F1F' : isAdd ? '#27500A' : isTrim ? '#854D0E' : '#6b7280'
+                  const label = isNew  ? '🆕 New' :
+                                isExit ? '✕ Exited' :
+                                isAdd  ? `▲ +${(delta / 1e6).toFixed(2)}M` :
+                                isTrim ? `▼ ${(delta / 1e6).toFixed(2)}M` : '— Hold'
+                  return <span style={{ fontSize: 10, background: bg, color, borderRadius: 5, padding: '2px 7px', fontWeight: 500 }}>{label}</span>
+                }
+
                 return (
                   <div key={f.fundId} style={{ padding: '10px 0', borderBottom: i < sortedFunds.length - 1 ? '0.5px solid #f3f4f6' : 'none' }}>
+                    {/* Fund header */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
                       <div style={{ width: 26, height: 26, borderRadius: 6, background: '#f9fafb', border: '0.5px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 600, color: '#6b7280', flexShrink: 0 }}>
                         {f.fundName.slice(0, 2).toUpperCase()}
                       </div>
                       <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: '#111827' }}>{f.fundName}</div>
-                      <span style={{ fontSize: 10, background: chgBg, color: chgColor, borderRadius: 5, padding: '2px 7px', fontWeight: 500 }}>{chgLabel}</span>
+                      {chgBadge(common.change, common.shareDelta)}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, paddingLeft: 34 }}>
-                      {!isNew && (
+
+                    {/* Common stock row */}
+                    <div style={{ display: 'flex', gap: 8, paddingLeft: 34, marginBottom: options.length ? 8 : 0 }}>
+                      {common.change !== 'new' && (
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>{priorPeriod}</div>
-                          <div style={{ fontSize: 11, color: '#6b7280' }}>{f.priorShares ? (f.priorShares / 1e6).toFixed(2) + 'M shs' : '—'}</div>
-                          {f.priorValue > 0 && <div style={{ fontSize: 10, color: '#9ca3af' }}>{fmtValue(f.priorValue)}</div>}
+                          <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>{priorPeriod} · Common</div>
+                          <div style={{ fontSize: 11, color: '#6b7280' }}>{common.priorShares ? (common.priorShares / 1e6).toFixed(2) + 'M shs' : '—'}</div>
+                          {common.priorValue > 0 && <div style={{ fontSize: 10, color: '#9ca3af' }}>{fmtValue(common.priorValue)}</div>}
                         </div>
                       )}
-                      {!isExit && (
+                      {common.change !== 'exit' && (
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>{currentPeriod}</div>
-                          <div style={{ fontSize: 11, fontWeight: 500, color: '#111827' }}>{(f.currentShares / 1e6).toFixed(2)}M shs</div>
-                          <div style={{ fontSize: 10, color: '#6b7280' }}>{fmtValue(f.currentValue)} held</div>
-                          {f.shareDelta !== 0 && (
-                            <div style={{ fontSize: 10, fontWeight: 500, color: f.shareDelta > 0 ? '#27500A' : '#791F1F', marginTop: 1 }}>
-                              {fmtNetValue(f.shareDelta, f.currentValue, f.currentShares)} net
+                          <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>{currentPeriod} · Common</div>
+                          <div style={{ fontSize: 11, fontWeight: 500, color: '#111827' }}>{(common.currentShares / 1e6).toFixed(2)}M shs</div>
+                          <div style={{ fontSize: 10, color: '#6b7280' }}>{fmtValue(common.currentValue)} held</div>
+                          {common.shareDelta !== 0 && (
+                            <div style={{ fontSize: 10, fontWeight: 500, color: common.shareDelta > 0 ? '#27500A' : '#791F1F', marginTop: 1 }}>
+                              {fmtNetValue(common.shareDelta, common.currentValue, common.currentShares)} net
                             </div>
                           )}
                         </div>
                       )}
-                      {isExit && (
+                      {common.change === 'exit' && (
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>Was holding</div>
-                          <div style={{ fontSize: 11, color: '#791F1F' }}>{f.priorShares ? (f.priorShares / 1e6).toFixed(2) + 'M shs' : '—'}</div>
+                          <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>Was holding · Common</div>
+                          <div style={{ fontSize: 11, color: '#791F1F' }}>{common.priorShares ? (common.priorShares / 1e6).toFixed(2) + 'M shs' : '—'}</div>
                           <div style={{ fontSize: 10, color: '#791F1F' }}>Fully exited</div>
                         </div>
                       )}
                     </div>
+
+                    {/* Options sub-rows (calls + puts) */}
+                    {options.map((pos, oi) => (
+                      <div key={oi} style={{ display: 'flex', gap: 8, paddingLeft: 34, paddingTop: 6, borderTop: '0.5px dashed #f3f4f6', marginTop: 2 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>{priorPeriod} · {pos.secType}</div>
+                          <div style={{ fontSize: 10, color: '#6b7280' }}>{pos.priorShares ? (pos.priorShares / 1e6).toFixed(2) + 'M' : '—'}</div>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>{currentPeriod} · {pos.secType}</div>
+                          <div style={{ fontSize: 10, color: '#374151' }}>{pos.currentShares ? (pos.currentShares / 1e6).toFixed(2) + 'M' : '—'}</div>
+                          {pos.shareDelta !== 0 && (
+                            <div style={{ fontSize: 9, color: pos.shareDelta > 0 ? '#27500A' : '#791F1F' }}>
+                              {pos.shareDelta > 0 ? '+' : ''}{(pos.shareDelta / 1e6).toFixed(2)}M
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )
               })}
